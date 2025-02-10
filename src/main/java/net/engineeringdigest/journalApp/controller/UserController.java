@@ -1,8 +1,12 @@
 package net.engineeringdigest.journalApp.controller;
 
+import net.engineeringdigest.journalApp.api.QuoteResponse;
+import net.engineeringdigest.journalApp.api.WeatherResponse;
 import net.engineeringdigest.journalApp.entity.User;
 import net.engineeringdigest.journalApp.repository.UserRepository;
+import net.engineeringdigest.journalApp.service.QuoteService;
 import net.engineeringdigest.journalApp.service.UserService;
+import net.engineeringdigest.journalApp.service.WeatherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +23,12 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private WeatherService weatherService;
+
+    @Autowired
+    private QuoteService quoteService;
 
     @PutMapping
     public ResponseEntity<?> updateUser(@RequestBody User user){
@@ -38,6 +48,20 @@ public class UserController {
         String name = authentication.getName();
         userRepository.deleteByUserName(name);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @GetMapping
+    public ResponseEntity<?> greeting(){
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        WeatherResponse weatherResponse = weatherService.getWeather("New Delhi");
+        QuoteResponse quoteResponse= quoteService.getQuote();
+        String greetings="";
+        if(weatherResponse!=null){
+            greetings="\n Weather feels like: "+weatherResponse.getCurrent().getFeelslike()+"\n \n Quote of the day: \n"+quoteResponse.getData().getQuote();
+        }
+
+
+        return new ResponseEntity<>("Hi " + authentication.getName()+greetings,HttpStatus.OK);
     }
 
 }
