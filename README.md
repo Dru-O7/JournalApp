@@ -19,3 +19,4 @@ weather:
     key: <weatherstack_api_key>
 ```
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
