@@ -16,7 +16,6 @@ public class UserServiceTests {
     @Test
     public void testFindByUserName(){
 
-
         assertNotNull(userRepository.findByUserName("Dru-O7"));
     }
 }
