@@ -30,6 +30,7 @@ public class UserController {
     @Autowired
     private QuoteService quoteService;
 
+
     @PutMapping
     public ResponseEntity<?> updateUser(@RequestBody User user){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -53,8 +54,12 @@ public class UserController {
     @GetMapping
     public ResponseEntity<?> greeting(){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        WeatherResponse weatherResponse = weatherService.getWeather("New Delhi");
+        User user = userService.finduserByUserName(authentication.getName());
+        String city = (user != null && user.getCity() != null) ? user.getCity() : "New Delhi";
+
+        WeatherResponse weatherResponse = weatherService.getWeather(city);
         QuoteResponse quoteResponse= quoteService.getQuote();
+
         String greetings="";
         if(weatherResponse!=null){
             greetings="\n Weather feels like: "+weatherResponse.getCurrent().getFeelslike()+"\n \n Quote of the day: \n"+quoteResponse.getData().getQuote();
