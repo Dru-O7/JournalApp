@@ -3,7 +3,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
 
 ## Overview
-This project provides a RESTful API for the **Journal App**, allowing users to create, update, delete, and view journal entries. The API also includes user authentication and admin functionalities.
+This project provides a RESTful API for the **Journal App**, enabling users to create, update, delete, and view journal entries. It also includes authentication and admin functionalities.
 
 ## Base URL
 ```
@@ -11,7 +11,7 @@ http://localhost:8081/journal
 ```
 
 ## Authentication
-The API uses **JWT Bearer Authentication** for securing endpoints.
+The API uses **JWT Bearer Authentication** to secure endpoints.
 
 ## API Endpoints
 
@@ -29,40 +29,40 @@ These endpoints require authentication.
 
 | Endpoint      | Method | Description                |
 |--------------|--------|----------------------------|
-| `/user`      | GET    | Greetings message          |
+| `/user`      | GET    | Retrieve a greeting message |
 | `/user`      | PUT    | Update user details        |
 | `/user`      | DELETE | Delete user account       |
 
 ### 3. Journal Entry APIs
-These endpoints allow users to manage journal entries.
+Users can manage journal entries using these endpoints.
 
 | Endpoint                  | Method | Description                                      |
 |---------------------------|--------|--------------------------------------------------|
-| `/journal`                | GET    | Get all journal entries                         |
-| `/journal/id/{myId}`      | GET    | Get a journal entry by ID                       |
+| `/journal`                | GET    | Retrieve all journal entries                    |
+| `/journal/id/{myId}`      | GET    | Retrieve a journal entry by ID                  |
 | `/journal/id/{myId}`      | PUT    | Update a journal entry by ID                    |
 | `/journal/id/{myId}`      | DELETE | Delete a journal entry by ID                    |
 | `/journal`                | POST   | Create a new journal entry (Sentiments: HAPPY, SAD, ANGRY, ANXIOUS) |
 
 ### 4. Admin APIs
-Admin endpoints require authentication and elevated privileges.
+These endpoints require authentication with admin privileges.
 
 | Endpoint                      | Method | Description                         |
 |--------------------------------|--------|-------------------------------------|
 | `/admin/create-admin-user`     | POST   | Create an admin user               |
 | `/admin/update-admin-user`     | PUT    | Update admin user details          |
-| `/admin/all-users`             | GET    | View all users                     |
+| `/admin/all-users`             | GET    | Retrieve all users                 |
 
 ## Technologies Used
 - **Spring Boot** - Backend framework
 - **MongoDB** - NoSQL database
 - **Redis** - Caching mechanism
-- **Spring Security** - Authentication & Authorization
+- **Spring Security** - Authentication & authorization
 - **JWT (JSON Web Tokens)** - Token-based authentication
 - **SonarCloud** - Code quality and security analysis
 
 ## Configuration
-The following **`application.yml`** file is required to configure the application:
+The following **`application.yml`** file is required for application setup:
 
 ```yaml
 spring:
@@ -107,10 +107,27 @@ springdoc:
     enabled: true
 ```
 
+## MongoDB Collection Setup
+Before running the application, manually create a **MongoDB collection** named **config_journal_app** with the following key-value pairs:
+
+```json
+{
+  "key": "weather_api",
+  "value": "http://api.weatherstack.com/current?access_key=<apiKey>&query=<city>"
+}
+```
+
+```json
+{
+  "key": "quote_api",
+  "value": "https://stoic.tekloon.net/stoic-quote"
+}
+```
+
 ## Code Quality & Security
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
 
-This project is continuously analyzed for **code quality and security vulnerabilities** using **SonarCloud**.
+This project undergoes continuous **code quality and security analysis** using **SonarCloud**.
 
 ## Running the Application
 1. Clone the repository:
@@ -126,8 +143,8 @@ This project is continuously analyzed for **code quality and security vulnerabil
    mvn spring-boot:run
    ```
 
-## Run Locally
-You can access the API documentation via Swagger UI at:
+## Running Locally
+Access the API documentation via **Swagger UI** at:
 ```
 http://localhost:8081/journal/swagger-ui/index.html
 ```
