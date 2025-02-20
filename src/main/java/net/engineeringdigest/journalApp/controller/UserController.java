@@ -1,5 +1,6 @@
 package net.engineeringdigest.journalApp.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import net.engineeringdigest.journalApp.api.QuoteResponse;
 import net.engineeringdigest.journalApp.api.WeatherResponse;
 import net.engineeringdigest.journalApp.entity.User;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
+@Tag(name = "2. User APIs",description = "Greetings, Update and Delete User")
 public class UserController {
 
     @Autowired

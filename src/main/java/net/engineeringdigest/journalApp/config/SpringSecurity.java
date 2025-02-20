@@ -29,13 +29,18 @@ public class SpringSecurity {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.authorizeHttpRequests(request -> request
                         .requestMatchers(new AntPathRequestMatcher("/public/**")).permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/journal/**"), new AntPathRequestMatcher("/user/**")).authenticated()
+                        .requestMatchers(new AntPathRequestMatcher("/swagger-ui/**"),
+                                new AntPathRequestMatcher("/v3/api-docs/**"),
+                                new AntPathRequestMatcher("/swagger-ui.html")).permitAll()  // Allow Swagger
+                        .requestMatchers(new AntPathRequestMatcher("/journal/**"),
+                                new AntPathRequestMatcher("/user/**")).authenticated()
                         .requestMatchers(new AntPathRequestMatcher("/admin/**")).hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .csrf(AbstractHttpConfigurer::disable)
-        .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
+
 
     @Autowired
     public void configureGlobal(AuthenticationManagerBuilder auth) throws Exception {
