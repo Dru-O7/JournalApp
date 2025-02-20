@@ -1,3 +1,5 @@
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
+
 Application.yml setup
 ```
 spring:
@@ -18,5 +20,5 @@ weather:
   api:
     key: <weatherstack_api_key>
 ```
+Run Locally on: localhost:8081/journal/swagger-ui/index.html
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
