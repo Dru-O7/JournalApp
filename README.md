@@ -1,5 +1,7 @@
 # Journal App APIs
 
+![Journal App Banner](https://images.unsplash.com/photo-1584288230038-153db6e0d6a6)
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
 
 ## Overview
