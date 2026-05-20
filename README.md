@@ -132,7 +132,7 @@ This project undergoes continuous **code quality and security analysis** using *
 ## Running the Application
 1. Clone the repository:
    ```sh
-   git clone https://github.com/your-repository/journal-app.git
+   git clone https://github.com/Dru-O7/JournalApp.git
    ```
 2. Navigate to the project directory:
    ```sh
