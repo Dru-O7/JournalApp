@@ -305,30 +305,52 @@ function Editor({
     else blocker.reset();
   }, [blocker]);
 
-  const save = (e: FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() && !content.trim()) return setError('Write something first.');
+  // Set when saving hit a 409: today's entry was written or changed elsewhere (another tab or device).
+  const [conflict, setConflict] = useState<Entry | null>(null);
+
+  /** Loads the version that won: the entry itself, or (for a new entry) today's entry made elsewhere. */
+  const loadOtherVersion = async (): Promise<Entry | null> => {
+    let rec: EntryRecord | undefined;
+    if (entry) rec = await api.getEntry(entry.id);
+    else rec = (await api.listEntries(0)).items.find((r) => r.entryDate === localIso(new Date()));
+    if (!rec) return null;
+    let plain: EntryPlaintext | null = null;
+    try {
+      plain = await decryptEntry(dataKey!, rec.id, rec.ciphertext, rec.iv);
+    } catch {
+      /* unreadable: still offer to overwrite it */
+    }
+    return toEntry(rec, plain);
+  };
+
+  /** Encrypts and stores the editor's text. `target` overwrites a specific stored version. */
+  const persist = (target?: { id: string; version: number }) =>
     run(async () => {
-      const id = entry?.id ?? crypto.randomUUID();
+      const id = target?.id ?? entry?.id ?? crypto.randomUUID();
       const plain = { title: title.trim(), content, sentiment };
+      // The entry id is bound into the ciphertext, so encrypt for the record actually being written.
       const { ciphertext, iv } = await encryptEntry(dataKey!, id, plain);
       // The mood is only shared with the server if the user opted in to the weekly email.
       const reportSentiment = me?.weeklyReport ? sentiment : null;
+      const version = target?.version ?? entry?.version;
       try {
-        const rec = entry
-          ? await api.updateEntry(id, { ciphertext, iv, reportSentiment, version: entry.version })
-          : await api.createEntry({ id, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', ciphertext, iv, reportSentiment });
+        const rec =
+          version !== undefined
+            ? await api.updateEntry(id, { ciphertext, iv, reportSentiment, version })
+            : await api.createEntry({ id, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', ciphertext, iv, reportSentiment });
+        setConflict(null);
         onSaved(toEntry(rec, plain));
         setSaved(true);
       } catch (err) {
         if (err instanceof ApiError && err.status === 401)
           throw new Error('Not saved yet: your session ended. Sign in again, then press Save. Your text is still here.');
-        if (err instanceof ApiError && err.status === 409 && !entry) {
-          onStale();
-          throw new Error("You've already written today's entry (maybe in another tab). Copy your text; it's been reloaded below.");
+        if (err instanceof ApiError && err.status === 409) {
+          const other = await loadOtherVersion();
+          if (other) {
+            setConflict(other);
+            return;
+          }
         }
-        if (err instanceof ApiError && err.status === 409)
-          throw new Error('This entry was changed in another tab or device. Copy your text, reload the page and try again.');
         if (err instanceof ApiError && err.status === 403) {
           onStale();
           throw new Error("This day has ended, so the entry is now locked. Copy anything you'd like to keep.");
@@ -336,6 +358,21 @@ function Editor({
         throw err;
       }
     });
+
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() && !content.trim()) return setError('Write something first.');
+    persist();
+  };
+
+  const takeOtherVersion = () => {
+    if (!conflict) return;
+    setTitle(conflict.plain?.title ?? '');
+    setContent(conflict.plain?.content ?? '');
+    setSentiment(conflict.plain?.sentiment ?? null);
+    onSaved(conflict); // becomes the editor's baseline, so the form is no longer dirty
+    setConflict(null);
+    setError(null);
   };
 
   return (
@@ -351,6 +388,31 @@ function Editor({
         </button>
       </div>
       <Alert>{error}</Alert>
+      {conflict && (
+        <section className="conflict" role="alert" aria-labelledby="conflict-title">
+          <h3 id="conflict-title">Not saved: this entry was {entry ? 'changed' : 'already written'} in another tab or device</h3>
+          <p className="small">Your text below is untouched. Here is the other version:</p>
+          <div className="conflict-other">
+            {conflict.plain ? (
+              <>
+                <strong>{conflict.plain.title || 'Untitled'}</strong>
+                {conflict.plain.sentiment && <span className="mood">{moodLabel(conflict.plain.sentiment)}</span>}
+                <div className="entry-read">{conflict.plain.content || <span className="muted">No text.</span>}</div>
+              </>
+            ) : (
+              <span className="muted">The other version could not be decrypted.</span>
+            )}
+          </div>
+          <div className="row">
+            <button type="button" className="primary" disabled={busy} onClick={() => persist({ id: conflict.id, version: conflict.version })}>
+              Save mine over it
+            </button>
+            <button type="button" disabled={busy || !conflict.plain} onClick={takeOtherVersion}>
+              Use the other version
+            </button>
+          </div>
+        </section>
+      )}
       {saved && !dirty && <Alert kind="ok">Saved. You can keep editing until midnight.</Alert>}
       <input
         ref={titleRef}

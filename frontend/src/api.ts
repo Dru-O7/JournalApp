@@ -145,6 +145,7 @@ export const api = {
   greeting: () => request<Greeting>('GET', '/me/greeting'),
 
   entryActivity: () => request<Activity>('GET', '/entries/activity'),
+  getEntry: (id: string) => request<EntryRecord>('GET', `/entries/${encodeURIComponent(id)}`),
   listEntries: (page: number, size = 20) => request<Page<EntryRecord>>('GET', `/entries?page=${page}&size=${size}`),
   /** Creates today's entry; `timeZone` decides which day "today" is. 409 if today's entry exists. */
   createEntry: (body: { id: string; timeZone: string; ciphertext: string; iv: string; reportSentiment: Sentiment | null }) =>
