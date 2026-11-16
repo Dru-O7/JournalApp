@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../session';
 import { passwordProblem } from '../crypto';
-import { Alert, LockIcon, PasswordField, useAction } from '../components/ui';
+import { Alert, LockIcon, PasswordField, TextField, useAction, useFieldError } from '../components/ui';
 
 export function LoginPage() {
   const { login, notice } = useSession();
@@ -51,14 +51,16 @@ export function SignupPage() {
   const [city, setCity] = useState('');
   const [weeklyReport, setWeeklyReport] = useState(false);
   const [understood, setUnderstood] = useState(false);
-  const { busy, error, setError, run } = useAction();
+  const { busy, error, run } = useAction();
+  const { fail, errorFor, clear } = useFieldError();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    clear();
     const problem = passwordProblem(password, username.trim());
-    if (problem) return setError(problem);
-    if (password !== confirm) return setError('Passwords do not match.');
-    if (weeklyReport && !email.trim()) return setError('The weekly mood email needs an email address.');
+    if (problem) return fail('su-password', problem);
+    if (password !== confirm) return fail('su-confirm', 'Passwords do not match.');
+    if (weeklyReport && !email.trim()) return fail('su-email', 'Add an email address for the weekly mood email, or turn it off below.');
     run(() => signup({ username: username.trim(), password, email, city, weeklyReport }));
   };
 
@@ -71,7 +73,7 @@ export function SignupPage() {
           the people who run this service, can read it.
         </p>
         <Alert>{error}</Alert>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} onChange={clear}>
           <div className="field">
             <label htmlFor="su-username">Username</label>
             <input
@@ -81,21 +83,33 @@ export function SignupPage() {
               autoComplete="username"
               pattern="[A-Za-z0-9_.\-]{3,32}"
               title="3–32 characters: letters, digits, _ . -"
+              aria-describedby="su-username-hint"
               onChange={(e) => setUsername(e.target.value)}
               required
             />
+            <div id="su-username-hint" className="hint">
+              3–32 characters: letters, digits, _ . -
+            </div>
           </div>
-          <PasswordField id="su-password" label="Password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters. A short sentence works well." />
-          <PasswordField id="su-confirm" label="Confirm password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
-          <div className="field">
-            <label htmlFor="su-email">Email (optional)</label>
-            <input id="su-email" type="email" value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="su-city">City for the weather greeting (optional)</label>
-            <input id="su-city" type="text" value={city} maxLength={100} onChange={(e) => setCity(e.target.value)} />
-            <div className="hint">Email and city are stored encrypted; the server uses them only for email and weather.</div>
-          </div>
+          <PasswordField
+            id="su-password"
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            hint="At least 10 characters, not containing your username. A short sentence works well."
+            error={errorFor('su-password')}
+          />
+          <PasswordField id="su-confirm" label="Confirm password" value={confirm} onChange={setConfirm} autoComplete="new-password" error={errorFor('su-confirm')} />
+          <TextField id="su-email" type="email" label="Email (optional)" value={email} onChange={setEmail} autoComplete="email" error={errorFor('su-email')} />
+          <TextField
+            id="su-city"
+            label="City for the weather greeting (optional)"
+            value={city}
+            onChange={setCity}
+            maxLength={100}
+            hint="Email and city are stored encrypted; the server uses them only for email and weather."
+          />
           <div className="field">
             <label className="check">
               <input type="checkbox" checked={weeklyReport} onChange={(e) => setWeeklyReport(e.target.checked)} />

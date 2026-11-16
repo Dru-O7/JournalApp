@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { ApiError } from '../api';
 
 export function LockIcon({ size = 18 }: { size?: number }) {
@@ -46,6 +46,73 @@ export function useAction() {
   return { busy, error, setError, run };
 }
 
+/**
+ * A client-side validation error tied to one field: shown under it, announced with it
+ * (aria-describedby + aria-invalid), and focused so keyboard and screen-reader users land on it.
+ * Put `onChange={clear}` on the <form> so the message goes away once the user edits anything.
+ */
+export function useFieldError() {
+  const [fieldError, setFieldError] = useState<{ id: string; message: string } | null>(null);
+  useEffect(() => {
+    if (fieldError) document.getElementById(fieldError.id)?.focus();
+  }, [fieldError]);
+  return {
+    fail: (id: string, message: string) => setFieldError({ id, message }),
+    errorFor: (id: string) => (fieldError?.id === id ? fieldError.message : undefined),
+    clear: () => setFieldError(null),
+  };
+}
+
+/** Props that wire an input to its hint and error text. */
+function describedBy(id: string, hint?: ReactNode, error?: string) {
+  const ids = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ');
+  return { 'aria-describedby': ids || undefined, 'aria-invalid': error ? true : undefined };
+}
+
+function FieldNotes({ id, hint, error }: { id: string; hint?: ReactNode; error?: string }) {
+  return (
+    <>
+      {error && (
+        <div id={`${id}-error`} className="field-error">
+          {error}
+        </div>
+      )}
+      {hint && (
+        <div id={`${id}-hint`} className="hint">
+          {hint}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function TextField({
+  id,
+  label,
+  value,
+  onChange,
+  hint,
+  error,
+  type = 'text',
+  ...rest
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: ReactNode;
+  error?: string;
+  type?: 'text' | 'email';
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'value' | 'onChange' | 'type'>) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} {...describedBy(id, hint, error)} {...rest} />
+      <FieldNotes id={id} hint={hint} error={error} />
+    </div>
+  );
+}
+
 export function PasswordField({
   id,
   label,
@@ -53,6 +120,7 @@ export function PasswordField({
   onChange,
   autoComplete,
   hint,
+  error,
 }: {
   id: string;
   label: string;
@@ -60,6 +128,7 @@ export function PasswordField({
   onChange: (v: string) => void;
   autoComplete: string;
   hint?: string;
+  error?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -73,12 +142,13 @@ export function PasswordField({
           autoComplete={autoComplete}
           onChange={(e) => onChange(e.target.value)}
           required
+          {...describedBy(id, hint, error)}
         />
         <button type="button" className="ghost small" onClick={() => setShow((s) => !s)} aria-label={show ? 'Hide password' : 'Show password'}>
           {show ? 'Hide' : 'Show'}
         </button>
       </div>
-      {hint && <div className="hint">{hint}</div>}
+      <FieldNotes id={id} hint={hint} error={error} />
     </div>
   );
 }

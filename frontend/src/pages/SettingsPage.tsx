@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { deriveKeys, passwordProblem } from '../crypto';
 import { useSession } from '../session';
-import { Alert, PasswordField, useAction } from '../components/ui';
+import { Alert, PasswordField, TextField, useAction, useFieldError } from '../components/ui';
 
 export function SettingsPage() {
   return (
@@ -24,12 +24,14 @@ function ProfileCard() {
   const [city, setCity] = useState(me?.city ?? '');
   const [weeklyReport, setWeeklyReport] = useState(me?.weeklyReport ?? false);
   const [ok, setOk] = useState<string | null>(null);
-  const { busy, error, setError, run } = useAction();
+  const { busy, error, run } = useAction();
+  const { fail, errorFor, clear } = useFieldError();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setOk(null);
-    if (weeklyReport && !email.trim()) return setError('The weekly mood email needs an email address.');
+    clear();
+    if (weeklyReport && !email.trim()) return fail('p-email', 'Add an email address for the weekly mood email, or turn it off below.');
     const turningOff = me?.weeklyReport && !weeklyReport;
     run(async () => {
       setMe(await api.updateProfile({ email, city, weeklyReport }));
@@ -38,19 +40,13 @@ function ProfileCard() {
   };
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} onChange={clear}>
       <h2>Profile</h2>
       <p className="muted small">Stored encrypted. Used only to send your weekly email and show local weather.</p>
       <Alert>{error}</Alert>
       <Alert kind="ok">{ok}</Alert>
-      <div className="field">
-        <label htmlFor="p-email">Email</label>
-        <input id="p-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="p-city">City</label>
-        <input id="p-city" type="text" value={city} maxLength={100} onChange={(e) => setCity(e.target.value)} />
-      </div>
+      <TextField id="p-email" type="email" label="Email" value={email} onChange={setEmail} autoComplete="email" error={errorFor('p-email')} />
+      <TextField id="p-city" label="City" value={city} onChange={setCity} maxLength={100} />
       <div className="field">
         <label className="check">
           <input type="checkbox" checked={weeklyReport} onChange={(e) => setWeeklyReport(e.target.checked)} />
@@ -76,14 +72,16 @@ function CredentialsCard() {
   const [next, setNext] = useState('');
   const [confirmNext, setConfirmNext] = useState('');
   const [ok, setOk] = useState(false);
-  const { busy, error, setError, run } = useAction();
+  const { busy, error, run } = useAction();
+  const { fail, errorFor, clear } = useFieldError();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setOk(false);
+    clear();
     const problem = passwordProblem(next, username.trim());
-    if (problem) return setError(problem);
-    if (next !== confirmNext) return setError('New passwords do not match.');
+    if (problem) return fail('c-new', problem);
+    if (next !== confirmNext) return fail('c-confirm', 'New passwords do not match.');
     run(async () => {
       await changeCredentials(current, username.trim(), next);
       setCurrent('');
@@ -94,7 +92,7 @@ function CredentialsCard() {
   };
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} onChange={clear}>
       <h2>Username &amp; password</h2>
       <p className="muted small">
         Your journal key is re-encrypted with the new password on this device. Other devices are signed out.
@@ -114,8 +112,8 @@ function CredentialsCard() {
           required
         />
       </div>
-      <PasswordField id="c-new" label="New password" value={next} onChange={setNext} autoComplete="new-password" hint="Re-enter your current password here to change only the username." />
-      <PasswordField id="c-confirm" label="Confirm new password" value={confirmNext} onChange={setConfirmNext} autoComplete="new-password" />
+      <PasswordField id="c-new" label="New password" value={next} onChange={setNext} autoComplete="new-password" hint="Re-enter your current password here to change only the username." error={errorFor('c-new')} />
+      <PasswordField id="c-confirm" label="Confirm new password" value={confirmNext} onChange={setConfirmNext} autoComplete="new-password" error={errorFor('c-confirm')} />
       <button className="primary" disabled={busy}>
         {busy ? 'Re-encrypting…' : 'Update'}
       </button>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, type AdminUser, type Page } from '../api';
 import { deriveKeys, generateDataKey, passwordProblem, wrapDataKey } from '../crypto';
-import { Alert, errorMessage, formatDate, PasswordField, useAction } from '../components/ui';
+import { Alert, errorMessage, formatDate, PasswordField, useAction, useFieldError } from '../components/ui';
 
 /** Admins manage accounts. They have no access to anyone's entries: there is no API for it and entries are ciphertext. */
 export function AdminPage() {
@@ -83,13 +83,15 @@ function CreateAdminCard({ onCreated }: { onCreated: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [ok, setOk] = useState<string | null>(null);
-  const { busy, error, setError, run } = useAction();
+  const { busy, error, run } = useAction();
+  const { fail, errorFor, clear } = useFieldError();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setOk(null);
+    clear();
     const problem = passwordProblem(password, username.trim());
-    if (problem) return setError(problem);
+    if (problem) return fail('a-password', problem);
     run(async () => {
       const name = username.trim();
       const { authKey, kek } = await deriveKeys(name, password);
@@ -103,7 +105,7 @@ function CreateAdminCard({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} onChange={clear}>
       <h2>Create admin</h2>
       <Alert>{error}</Alert>
       <Alert kind="ok">{ok}</Alert>
@@ -111,7 +113,7 @@ function CreateAdminCard({ onCreated }: { onCreated: () => void }) {
         <label htmlFor="a-username">Username</label>
         <input id="a-username" type="text" value={username} pattern="[A-Za-z0-9_.\-]{3,32}" autoComplete="off" onChange={(e) => setUsername(e.target.value)} required />
       </div>
-      <PasswordField id="a-password" label="Initial password" value={password} onChange={setPassword} autoComplete="new-password" />
+      <PasswordField id="a-password" label="Initial password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters." error={errorFor('a-password')} />
       <button className="primary" disabled={busy}>
         {busy ? 'Creating…' : 'Create admin'}
       </button>
