@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { api, ApiError, type EntryRecord, type Greeting } from '../api';
 import { decryptEntry, encryptEntry, SENTIMENTS, type EntryPlaintext, type Sentiment } from '../crypto';
@@ -46,11 +46,23 @@ export function JournalPage() {
   // Remount the editor only when the user opens something else, not when a new entry gets its id on save.
   const [editorKey, setEditorKey] = useState(0);
   const [activityKey, setActivityKey] = useState(0); // refetch the heatmap after writing
+  // Where keyboard focus goes back to when the open entry is closed.
+  const returnFocusTo = useRef<string | null>(null);
   const open = (id: string | null) => {
     if (id === selected || !confirmDiscard()) return;
+    if (id === null) returnFocusTo.current = selected;
     setSelected(id);
     setEditorKey((k) => k + 1);
   };
+  useEffect(() => {
+    if (selected !== null || returnFocusTo.current === null) return;
+    const id = returnFocusTo.current;
+    returnFocusTo.current = null;
+    const target =
+      document.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(id)}"]`) ??
+      document.querySelector<HTMLElement>('[data-write-today]');
+    target?.focus();
+  }, [selected]);
 
   const decryptAll = useCallback(
     (records: EntryRecord[]) =>
@@ -120,11 +132,11 @@ export function JournalPage() {
             <span className="spacer" />
             {!loading &&
               (todays ? (
-                <button className="ghost" onClick={() => open(todays.id)}>
+                <button className="ghost" data-write-today onClick={() => open(todays.id)}>
                   Today's entry
                 </button>
               ) : (
-                <button className="primary" onClick={() => open(NEW)}>
+                <button className="primary" data-write-today onClick={() => open(NEW)}>
                   Write today's entry
                 </button>
               ))}
@@ -136,7 +148,12 @@ export function JournalPage() {
           <ul>
             {entries.map((e) => (
               <li key={e.id}>
-                <button className={`entry-item ${selected === e.id ? 'selected' : ''}`} onClick={() => open(e.id)}>
+                <button
+                  className={`entry-item ${selected === e.id ? 'selected' : ''}`}
+                  data-entry-id={e.id}
+                  aria-current={selected === e.id ? 'true' : undefined}
+                  onClick={() => open(e.id)}
+                >
                   <span className="t">{e.plain ? e.plain.title || 'Untitled' : '⚠ Unreadable entry'}</span>
                   <span className="m">
                     {formatDay(e.entryDate)}
@@ -199,6 +216,8 @@ function GreetingBanner() {
 }
 
 function ReadOnlyEntry({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => headingRef.current?.focus(), []);
   return (
     <article className="card stack">
       <div className="row">
@@ -211,12 +230,19 @@ function ReadOnlyEntry({ entry, onClose }: { entry: Entry; onClose: () => void }
         </button>
       </div>
       {entry.plain === null ? (
-        <Alert>
-          This entry could not be decrypted. It may have been modified on the server. Its contents are not shown for your safety.
-        </Alert>
+        <>
+          <h2 className="entry-title" tabIndex={-1} ref={headingRef}>
+            Unreadable entry
+          </h2>
+          <Alert>
+            This entry could not be decrypted. It may have been modified on the server. Its contents are not shown for your safety.
+          </Alert>
+        </>
       ) : (
         <>
-          <h2 className="entry-title">{entry.plain.title || 'Untitled'}</h2>
+          <h2 className="entry-title" tabIndex={-1} ref={headingRef}>
+            {entry.plain.title || 'Untitled'}
+          </h2>
           {entry.plain.sentiment && <span className="mood">{moodLabel(entry.plain.sentiment)}</span>}
           <div className="entry-read">{entry.plain.content || <span className="muted">No text.</span>}</div>
           <p className="muted small" style={{ margin: 0 }}>
@@ -245,6 +271,19 @@ function Editor({
   const [sentiment, setSentiment] = useState<Sentiment | null>(entry?.plain?.sentiment ?? null);
   const [saved, setSaved] = useState(false);
   const { busy, error, setError, run } = useAction();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  // Opening the editor moves focus into it: the title for a new entry, the end of the text otherwise.
+  useEffect(() => {
+    if (!entry) return titleRef.current?.focus();
+    const t = contentRef.current;
+    if (t) {
+      t.focus();
+      t.setSelectionRange(t.value.length, t.value.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the editor is opened
+  }, []);
 
   const dirty =
     entry === null ? title !== '' || content !== '' || sentiment !== null
@@ -314,6 +353,7 @@ function Editor({
       <Alert>{error}</Alert>
       {saved && !dirty && <Alert kind="ok">Saved. You can keep editing until midnight.</Alert>}
       <input
+        ref={titleRef}
         className="title-input"
         type="text"
         placeholder="Title"
@@ -326,6 +366,7 @@ function Editor({
         }}
       />
       <textarea
+        ref={contentRef}
         placeholder="How was today?"
         aria-label="Entry"
         value={content}
