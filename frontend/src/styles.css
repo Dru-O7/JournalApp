@@ -138,6 +138,12 @@ button.full { width: 100%; }
   .journal { grid-template-columns: 1fr; }
   .journal.editing .entry-list { display: none; }
 }
+@media (max-width: 520px) {
+  .topbar { flex-wrap: wrap; row-gap: 0.25rem; padding: 0.5rem 1rem; }
+  .nav { margin-left: 0; width: 100%; flex-wrap: nowrap; }
+  .nav button { margin-left: auto; }
+  .nav a, .nav button { padding: 0.35rem 0.55rem; font-size: 0.9rem; }
+}
 .entry-list { padding: 0.5rem; }
 .entry-list ul { list-style: none; margin: 0; padding: 0; }
 .entry-item {

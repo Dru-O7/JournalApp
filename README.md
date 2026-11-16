@@ -74,6 +74,9 @@ All secrets come from environment variables; the app refuses to start if a requi
 | `PORT` | no | HTTP port (default 8081) |
 
 Serve `frontend/dist` from the same origin as the API (reverse proxy `/api` → backend), behind HTTPS.
+The built `index.html` carries a strict CSP, but browsers ignore `frame-ancestors` in a `<meta>` tag, so have the
+web server add `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` to the page response
+to block clickjacking.
 Health checks: `/actuator/health/liveness` and `/actuator/health/readiness`.
 
 ### Creating the first admin

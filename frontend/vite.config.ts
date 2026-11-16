@@ -17,7 +17,7 @@ function contentSecurityPolicy(): Plugin {
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    // frame-ancestors is ignored in a <meta> CSP; the web server must send it as a header (see README).
   ].join('; ');
   return {
     name: 'csp',

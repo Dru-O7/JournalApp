@@ -22,6 +22,12 @@ export function JournalPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // Remount the editor only when the user opens something else, not when a new entry gets its id on save.
+  const [editorKey, setEditorKey] = useState(0);
+  const open = (id: string | null) => {
+    setSelected(id);
+    setEditorKey((k) => k + 1);
+  };
 
   const decryptAll = useCallback(
     (records: EntryRecord[]) =>
@@ -74,7 +80,7 @@ export function JournalPage() {
 
   const onDeleted = (id: string) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
-    setSelected(null);
+    open(null);
   };
 
   return (
@@ -85,7 +91,7 @@ export function JournalPage() {
           <div className="row" style={{ padding: '0.25rem 0.5rem 0.5rem' }}>
             <h2 style={{ margin: 0 }}>Entries</h2>
             <span className="spacer" />
-            <button className="primary" onClick={() => setSelected(NEW)}>
+            <button className="primary" onClick={() => open(NEW)}>
               New entry
             </button>
           </div>
@@ -94,7 +100,7 @@ export function JournalPage() {
           <ul>
             {entries.map((e) => (
               <li key={e.id}>
-                <button className={`entry-item ${selected === e.id ? 'selected' : ''}`} onClick={() => setSelected(e.id)}>
+                <button className={`entry-item ${selected === e.id ? 'selected' : ''}`} onClick={() => open(e.id)}>
                   <span className="t">{e.plain ? e.plain.title || 'Untitled' : '⚠ Unreadable entry'}</span>
                   <span className="m">
                     {formatDate(e.createdAt)}
@@ -121,7 +127,7 @@ export function JournalPage() {
             </div>
           )}
           {selected !== null && (selected === NEW || current) && (
-            <Editor key={selected} entry={current} onSaved={onSaved} onDeleted={onDeleted} onClose={() => setSelected(null)} />
+            <Editor key={editorKey} entry={current} onSaved={onSaved} onDeleted={onDeleted} onClose={() => open(null)} />
           )}
         </section>
       </div>
