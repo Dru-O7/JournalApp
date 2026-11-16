@@ -10,6 +10,13 @@ export function LockIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** Sets the browser tab title for the current screen. */
+export function usePageTitle(title: string) {
+  useEffect(() => {
+    document.title = `${title} · Journal`;
+  }, [title]);
+}
+
 export function Alert({ kind = 'error', children }: { kind?: 'error' | 'ok' | 'info'; children: ReactNode }) {
   if (!children) return null;
   return (

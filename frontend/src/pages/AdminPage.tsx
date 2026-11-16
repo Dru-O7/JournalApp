@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, type AdminUser, type Page } from '../api';
 import { deriveKeys, generateDataKey, passwordProblem, wrapDataKey } from '../crypto';
-import { Alert, errorMessage, formatDate, PasswordField, useAction, useFieldError } from '../components/ui';
+import { Alert, errorMessage, formatDate, PasswordField, useAction, useFieldError, usePageTitle } from '../components/ui';
 
 /** Admins manage accounts. They have no access to anyone's entries: there is no API for it and entries are ciphertext. */
 export function AdminPage() {
   const [data, setData] = useState<Page<AdminUser> | null>(null);
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  usePageTitle('Admin');
 
   const load = useCallback((p: number) => {
     api

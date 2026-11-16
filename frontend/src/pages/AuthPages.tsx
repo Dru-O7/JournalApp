@@ -2,13 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../session';
 import { passwordProblem } from '../crypto';
-import { Alert, LockIcon, PasswordField, TextField, useAction, useFieldError } from '../components/ui';
+import { Alert, LockIcon, PasswordField, TextField, useAction, useFieldError, usePageTitle } from '../components/ui';
 
 export function LoginPage() {
   const { login, notice } = useSession();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const { busy, error, run } = useAction();
+  usePageTitle('Sign in');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -16,7 +17,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="narrow">
+    <main className="narrow">
       <div className="card">
         <h1 className="row">
           <LockIcon size={24} /> Sign in
@@ -38,7 +39,7 @@ export function LoginPage() {
           New here? <Link to="/signup">Create a journal</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -53,6 +54,7 @@ export function SignupPage() {
   const [understood, setUnderstood] = useState(false);
   const { busy, error, run } = useAction();
   const { fail, errorFor, clear } = useFieldError();
+  usePageTitle('Create your journal');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -65,7 +67,7 @@ export function SignupPage() {
   };
 
   return (
-    <div className="narrow">
+    <main className="narrow">
       <div className="card">
         <h1>Create your journal</h1>
         <p className="muted small">
@@ -135,6 +137,6 @@ export function SignupPage() {
           Already have one? <Link to="/">Sign in</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

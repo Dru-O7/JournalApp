@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { deriveKeys, passwordProblem, unwrapDataKey } from '../crypto';
 import { useSession } from '../session';
-import { Alert, PasswordField, TextField, useAction, useFieldError } from '../components/ui';
+import { Alert, PasswordField, TextField, useAction, useFieldError, usePageTitle } from '../components/ui';
 
 export function SettingsPage() {
+  usePageTitle('Settings');
   return (
     <>
       <h1>Settings</h1>

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useSession } from '../session';
-import { Alert, LockIcon, PasswordField, useAction } from '../components/ui';
+import { Alert, LockIcon, PasswordField, useAction, usePageTitle } from '../components/ui';
 
 /** Shown after a page reload: the session is valid but the data key is no longer in memory. */
 export function UnlockPage() {
   const { me, unlock, logout } = useSession();
   const [password, setPassword] = useState('');
   const { busy, error, run } = useAction();
+  usePageTitle('Journal locked');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -14,7 +15,7 @@ export function UnlockPage() {
   };
 
   return (
-    <div className="narrow">
+    <main className="narrow">
       <div className="card">
         <h1 className="row">
           <LockIcon size={24} /> Journal locked
@@ -37,6 +38,6 @@ export function UnlockPage() {
           </div>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

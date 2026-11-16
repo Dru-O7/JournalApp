@@ -3,7 +3,7 @@ import { useBlocker } from 'react-router-dom';
 import { api, ApiError, type EntryRecord, type Greeting } from '../api';
 import { decryptEntry, encryptEntry, SENTIMENTS, type EntryPlaintext, type Sentiment } from '../crypto';
 import { useSession } from '../session';
-import { Alert, errorMessage, LockIcon, moodLabel, useAction } from '../components/ui';
+import { Alert, errorMessage, LockIcon, moodLabel, useAction, usePageTitle } from '../components/ui';
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { localIso } from '../activity';
 import { confirmDiscard, DISCARD_PROMPT, setUnsaved } from '../unsaved';
@@ -37,6 +37,7 @@ function toEntry(r: EntryRecord, plain: EntryPlaintext | null): Entry {
 
 export function JournalPage() {
   const { dataKey } = useSession();
+  usePageTitle('Entries');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
