@@ -35,10 +35,17 @@ export function ActivityHeatmap({ refreshKey }: { refreshKey: number }) {
   const grid = useMemo(() => buildGrid(days ?? new Set(), new Date()), [days, todayKey]);
   const stats = useMemo(() => summarize(grid), [grid]);
 
-  // Narrow screens scroll the calendar sideways; start at the most recent weeks.
+  // Narrow screens scroll the calendar sideways; start at the most recent weeks, and stay there when
+  // the container resizes (rotation, window resize, the calendar being re-shown after editing).
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
+    if (!el) return;
+    el.scrollLeft = el.scrollWidth;
+    const ro = new ResizeObserver(() => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [days]);
 
   if (!days) return null;
