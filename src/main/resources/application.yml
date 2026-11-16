@@ -1,0 +1,93 @@
+# Production-safe defaults. Every secret comes from an environment variable; startup fails if one
+# is missing. For local development, run with SPRING_PROFILES_ACTIVE=local and create
+# application-local.yml from application-local.example.yml (git-ignored).
+server:
+  port: ${PORT:8081}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+  tomcat:
+    max-swallow-size: 2MB
+    max-http-form-post-size: 1MB
+
+spring:
+  application:
+    name: journal-app
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 500ms
+      connect-timeout: 1s
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    ttl: ${JWT_TTL:60m}
+  data-key: ${APP_DATA_KEY}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  weather:
+    base-url: ${WEATHER_BASE_URL:https://api.weatherstack.com/current}
+    api-key: ${WEATHER_API_KEY:}
+    default-city: New Delhi
+  quote:
+    url: ${QUOTE_URL:https://stoic.tekloon.net/stoic-quote}
+  login-rate-limit:
+    max-attempts-per-username: 10
+    max-attempts-per-ip: 50
+    window: 15m
+  weekly-report:
+    cron: "0 0 9 * * SUN"
+    zone: ${REPORT_ZONE:UTC}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    # Optional dependencies must not mark the app as down.
+    redis:
+      enabled: false
+    mail:
+      enabled: false
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

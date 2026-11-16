@@ -1,49 +1,41 @@
 package net.engineeringdigest.journalApp.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
-import net.engineeringdigest.journalApp.entity.User;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import net.engineeringdigest.journalApp.dto.AuthDtos.AdminUserView;
+import net.engineeringdigest.journalApp.dto.AuthDtos.SignupRequest;
+import net.engineeringdigest.journalApp.dto.PageResponse;
 import net.engineeringdigest.journalApp.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
+/**
+ * Administration. Admins see account metadata only (username, roles, creation date); there is
+ * intentionally no admin access to journal entries, and entries are ciphertext anyway.
+ * Admins change their own credentials through /api/v1/me/credentials like everyone else.
+ */
 @RestController
-@RequestMapping("/admin")
-@Tag(name = "4. Admin APIs",description = "Create and Update Admin, View all users details ")
+@RequestMapping("/api/v1/admin")
+@Tag(name = "Admin", description = "User list and admin creation")
 public class AdminController {
+    private final UserService userService;
 
-    @Autowired
-    private UserService userService;
-
-    @GetMapping("/all-users")
-    public ResponseEntity<?> getAllUsers(){
-        List<User> all=userService.getAll();
-        if(all!=null && !all.isEmpty()){
-            return new ResponseEntity<>(all, HttpStatus.OK);
-        }
-
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    public AdminController(UserService userService) {
+        this.userService = userService;
     }
 
-    @PostMapping("/create-admin-user")
-    public void createUser(@RequestBody User user){
-        userService.saveAdmin(user);
+    @GetMapping("/users")
+    public PageResponse<AdminUserView> users(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                             @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size) {
+        return userService.listUsers(page, size);
     }
 
-    @PutMapping("/update-admin-user")
-    public ResponseEntity<?> updateAdmin(@RequestBody User user){
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String userName = authentication.getName();
-        User userInDb = userService.finduserByUserName(userName);
-        userInDb.setUserName(user.getUserName());
-        userInDb.setPassword(user.getPassword());
-        userService.saveAdmin(userInDb);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-
+    /** Body is produced by the admin UI, which derives the new admin's keys from the chosen password. */
+    @PostMapping("/users")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminUserView createAdmin(@Valid @RequestBody SignupRequest req) {
+        return userService.createAdmin(req);
     }
 }

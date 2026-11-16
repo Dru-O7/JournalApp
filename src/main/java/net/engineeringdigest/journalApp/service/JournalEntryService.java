@@ -1,86 +1,93 @@
 package net.engineeringdigest.journalApp.service;
 
-import lombok.extern.slf4j.Slf4j;
-import net.engineeringdigest.journalApp.dto.JournalEntryDTO;
+import net.engineeringdigest.journalApp.crypto.DataCipher;
+import net.engineeringdigest.journalApp.dto.EntryDtos.*;
+import net.engineeringdigest.journalApp.dto.PageResponse;
 import net.engineeringdigest.journalApp.entity.JournalEntry;
+import net.engineeringdigest.journalApp.entity.Sentiment;
 import net.engineeringdigest.journalApp.entity.User;
+import net.engineeringdigest.journalApp.exception.ApiException;
 import net.engineeringdigest.journalApp.repository.JournalEntryRepository;
-import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
+import net.engineeringdigest.journalApp.repository.UserRepository;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.UUID;
 
-@Slf4j
+/**
+ * Journal entries are opaque ciphertext to this service. Every operation is scoped to the caller's
+ * user id; a foreign or missing id yields the same 404.
+ */
 @Service
 public class JournalEntryService {
-    @Autowired
-    private JournalEntryRepository journalEntryRepository;
+    public static final String SENTIMENT_FIELD = "journal_entries.report_sentiment";
 
-    @Autowired
-    private UserService userService;
+    private final JournalEntryRepository entries;
+    private final UserRepository users;
+    private final DataCipher cipher;
+
+    public JournalEntryService(JournalEntryRepository entries, UserRepository users, DataCipher cipher) {
+        this.entries = entries;
+        this.users = users;
+        this.cipher = cipher;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<EntryResponse> list(UUID userId, int page, int size) {
+        var p = entries.findByUserId(userId, PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        return PageResponse.of(p, EntryResponse::of);
+    }
+
+    @Transactional(readOnly = true)
+    public EntryResponse get(UUID userId, UUID entryId) {
+        return EntryResponse.of(owned(userId, entryId));
+    }
 
     @Transactional
-    public JournalEntry saveEntry(JournalEntryDTO dto, String userName) {
-        try {
-            User user = userService.finduserByUserName(userName);
-
-            JournalEntry journalEntry = convertToEntity(dto);
-            JournalEntry saved = journalEntryRepository.save(journalEntry);
-
-            user.getJournalEntries().add(saved);
-            userService.saveUser(user);
-
-            return saved;
-        } catch (Exception e) {
-            throw new RuntimeException("An error has occurred while saving the entry", e);
+    public EntryResponse create(UUID userId, CreateEntryRequest req) {
+        if (entries.existsById(req.id())) {
+            throw ApiException.conflict("An entry with this id already exists");
         }
+        JournalEntry e = new JournalEntry(req.id(), userId);
+        e.setCiphertext(req.ciphertext());
+        e.setIv(req.iv());
+        e.setReportSentimentEnc(reportSentiment(userId, req.reportSentiment()));
+        return EntryResponse.of(entries.saveAndFlush(e));
     }
+
     @Transactional
-    public JournalEntry saveEntry(JournalEntry journalEntry) {
-        return journalEntryRepository.save(journalEntry);
-    }
-
-
-    private JournalEntry convertToEntity(JournalEntryDTO dto) {
-        JournalEntry entry = new JournalEntry();
-        entry.setTitle(dto.getTitle());
-        entry.setContent(dto.getContent());
-        entry.setDate(LocalDateTime.now());
-        entry.setSentiment(dto.getSentiment());
-        return entry;
-    }
-
-    public Optional<JournalEntry> findById(ObjectId id) {
-        return journalEntryRepository.findById(id);
-    }
-    public List<JournalEntryDTO> getAll() {
-        return journalEntryRepository.findAll()
-                .stream()
-                .map(entry -> new JournalEntryDTO(entry.getTitle(), entry.getContent(), entry.getSentiment()))
-                .collect(Collectors.toList());
-    }
-
-
-    public boolean deleteById(ObjectId id, String userName) {
-        boolean removed = false;
-        try {
-            User user = userService.finduserByUserName(userName);
-            removed = user.getJournalEntries().removeIf(x -> x.getId().equals(id));
-            if (removed) {
-                userService.saveUser(user);
-                journalEntryRepository.deleteById(id);
-            }
-        } catch (Exception e) {
-            log.error("Error in Deleting entry");
-            throw new RuntimeException("An error has occurred while deleting the entry", e);
+    public EntryResponse update(UUID userId, UUID entryId, UpdateEntryRequest req) {
+        JournalEntry e = owned(userId, entryId);
+        if (!Objects.equals(e.getVersion(), req.version())) {
+            throw new OptimisticLockingFailureException("stale version");
         }
-        return removed;
+        e.setCiphertext(req.ciphertext());
+        e.setIv(req.iv());
+        e.setReportSentimentEnc(reportSentiment(userId, req.reportSentiment()));
+        return EntryResponse.of(entries.saveAndFlush(e));
     }
 
+    @Transactional
+    public void delete(UUID userId, UUID entryId) {
+        if (entries.deleteOwned(entryId, userId) == 0) {
+            throw ApiException.notFound("Entry");
+        }
+    }
 
+    private JournalEntry owned(UUID userId, UUID entryId) {
+        return entries.findByIdAndUserId(entryId, userId).orElseThrow(() -> ApiException.notFound("Entry"));
+    }
+
+    /** The mood is kept (server-encrypted) only for users who opted in to the weekly email. */
+    private String reportSentiment(UUID userId, Sentiment sentiment) {
+        if (sentiment == null) {
+            return null;
+        }
+        boolean optedIn = users.findById(userId).map(User::isWeeklyReport).orElse(false);
+        return optedIn ? cipher.encrypt(sentiment.name(), SENTIMENT_FIELD) : null;
+    }
 }

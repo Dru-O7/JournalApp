@@ -1,0 +1,21 @@
+# Copy to application-local.yml (git-ignored) and run with SPRING_PROFILES_ACTIVE=local.
+# Generate keys with:  openssl rand -base64 32
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/journal
+    username: journal
+    password: journal
+
+app:
+  jwt:
+    secret: REPLACE_WITH_openssl_rand_base64_32
+  data-key: REPLACE_WITH_openssl_rand_base64_32
+  # The Vite dev server proxies /api, so CORS is not needed locally.
+  weather:
+    api-key: ""
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
