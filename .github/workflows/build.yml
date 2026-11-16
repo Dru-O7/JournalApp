@@ -7,31 +7,18 @@ on:
 
 jobs:
   backend:
-    name: Backend (build, test, Sonar)
+    name: Backend (build, test)
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # full history for Sonar
       - uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: zulu
           cache: maven
-      - name: Cache SonarQube packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
       # Tests run against an embedded PostgreSQL; no external services or secrets needed.
       - name: Build and test
         run: ./mvnw -B verify
-      - name: Sonar analysis
-        if: env.SONAR_TOKEN != ''
-        run: ./mvnw -B -DskipTests org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=dru-o7_journalapp
 
   frontend:
     name: Frontend (typecheck, test, build)
