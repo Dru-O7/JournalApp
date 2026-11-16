@@ -1,8 +1,21 @@
 # Journal App
 
-A private journal with **end-to-end encrypted entries**. Spring Boot 4 + PostgreSQL backend, React frontend.
-Journal entries are encrypted in the browser; the server and database only ever hold ciphertext, so
-neither administrators nor anyone with database access can read them.
+A private **one-entry-a-day journal** with **end-to-end encrypted entries**. Spring Boot 4 + PostgreSQL
+backend, React frontend. Journal entries are encrypted in the browser; the server and database only ever
+hold ciphertext, so neither administrators nor anyone with database access can read them.
+
+## How the journal works
+
+- **One entry per day.** "Today" is the writer's local day, taken from the browser's time zone.
+- **Editable until midnight, then permanent.** Today's entry can be changed until the day ends; after
+  that it is read-only.
+- **No deleting entries.** Past days stay as written. Deleting the whole account removes everything.
+- **Your year at a glance.** A calendar heatmap shows the days you wrote on and your current streak.
+
+The server enforces these rules, not just the UI:
+- a database constraint allows only one entry per user per day;
+- an edit after the lock time returns `403`;
+- there is no delete endpoint.
 
 ## Security model
 
@@ -106,9 +119,10 @@ All endpoints are under `/api/v1`. Errors use `application/problem+json`.
 | POST | `/me/logout-everywhere` | Revoke all tokens |
 | DELETE | `/me` | Delete account and all entries (requires `authKey`) |
 | GET | `/me/greeting` | Greeting with weather and quote (best effort) |
-| GET | `/entries?page=&size=` | Own entries, newest first, paginated |
-| GET / PUT / DELETE | `/entries/{id}` | Own entry; `PUT` requires the last-seen `version` (409 if stale) |
-| POST | `/entries` | Create (client-generated UUID, ciphertext, iv) |
+| GET | `/entries?page=&size=` | Own entries, newest day first, paginated. Each has `entryDate`, `locksAt`, `editable` |
+| POST | `/entries` | Create today's entry (client-generated UUID, IANA `timeZone`, ciphertext, iv). `409` if today's entry exists |
+| GET / PUT | `/entries/{id}` | Own entry. `PUT` needs the last-seen `version` (`409` if stale) and is refused with `403` once the day has ended |
+| GET | `/entries/activity` | Days written on in the last year (dates only), for the heatmap |
 | GET / POST | `/admin/users` | Admin: list accounts (metadata only) / create admin |
 
 ## Tests

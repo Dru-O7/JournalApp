@@ -32,8 +32,11 @@ class WeeklyReportJobTest extends IntegrationTest {
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         String token = com.jayway.jsonpath.JsonPath.read(json, "$.token");
         for (Sentiment m : moods) {
+            // one entry per day: move earlier entries back a day (still inside the report's 7-day window)
+            jdbc.update("UPDATE journal_entries SET entry_date = entry_date - 1, created_at = created_at - interval '1 day', "
+                    + "locks_at = locks_at - interval '1 day' WHERE user_id = (SELECT id FROM users WHERE username = ?)", name);
             mvc.perform(post("/api/v1/entries").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"id\":\"%s\",\"ciphertext\":\"eA==\",\"iv\":\"AAAAAAAAAAAAAAAA\",\"reportSentiment\":\"%s\"}"
+                            .content("{\"id\":\"%s\",\"timeZone\":\"UTC\",\"ciphertext\":\"eA==\",\"iv\":\"AAAAAAAAAAAAAAAA\",\"reportSentiment\":\"%s\"}"
                                     .formatted(UUID.randomUUID(), m)))
                     .andExpect(status().isCreated());
         }

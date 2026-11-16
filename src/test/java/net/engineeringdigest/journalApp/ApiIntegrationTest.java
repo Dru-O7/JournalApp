@@ -62,10 +62,16 @@ class ApiIntegrationTest extends IntegrationTest {
         return b.header("Authorization", "Bearer " + s.token()).contentType(MediaType.APPLICATION_JSON);
     }
 
+    /**
+     * Creates today's entry. The journal allows one entry per day, so the user's existing entries are
+     * first moved one day into the past (dates, timestamps and lock time alike).
+     */
     String createEntry(Session s, String sentimentJson) throws Exception {
+        jdbc.update("UPDATE journal_entries SET entry_date = entry_date - 1, created_at = created_at - interval '1 day', "
+                + "locks_at = locks_at - interval '1 day' WHERE user_id = ?::uuid", s.id());
         String id = UUID.randomUUID().toString();
         String body = """
-                {"id":"%s","ciphertext":"Y2lwaGVydGV4dA==","iv":"%s"%s}
+                {"id":"%s","timeZone":"UTC","ciphertext":"Y2lwaGVydGV4dA==","iv":"%s"%s}
                 """.formatted(id, IV, sentimentJson == null ? "" : "," + sentimentJson);
         mvc.perform(as(s, post("/api/v1/entries")).content(body)).andExpect(status().isCreated());
         return id;
@@ -190,8 +196,9 @@ class ApiIntegrationTest extends IntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.ciphertext").value("bmV3"))
                     .andExpect(jsonPath("$.version").value(1));
-            mvc.perform(as(s, delete("/api/v1/entries/" + id))).andExpect(status().isNoContent());
-            mvc.perform(as(s, get("/api/v1/entries/" + id))).andExpect(status().isNotFound());
+            // entries can never be deleted
+            mvc.perform(as(s, delete("/api/v1/entries/" + id))).andExpect(status().isMethodNotAllowed());
+            mvc.perform(as(s, get("/api/v1/entries/" + id))).andExpect(status().isOk());
         }
 
         @Test
@@ -205,7 +212,6 @@ class ApiIntegrationTest extends IntegrationTest {
             mvc.perform(as(bob, put("/api/v1/entries/" + alicesEntry))
                             .content("{\"ciphertext\":\"cHduZWQ=\",\"iv\":\"%s\",\"version\":0}".formatted(IV)))
                     .andExpect(status().isNotFound());
-            mvc.perform(as(bob, delete("/api/v1/entries/" + alicesEntry))).andExpect(status().isNotFound());
 
             // alice's entry is untouched
             mvc.perform(as(alice, get("/api/v1/entries/" + alicesEntry)))
@@ -222,7 +228,7 @@ class ApiIntegrationTest extends IntegrationTest {
             Session bob = signup("bob");
             String id = createEntry(alice, null);
             mvc.perform(as(bob, post("/api/v1/entries"))
-                            .content("{\"id\":\"%s\",\"ciphertext\":\"cHduZWQ=\",\"iv\":\"%s\"}".formatted(id, IV)))
+                            .content("{\"id\":\"%s\",\"timeZone\":\"UTC\",\"ciphertext\":\"cHduZWQ=\",\"iv\":\"%s\"}".formatted(id, IV)))
                     .andExpect(status().isConflict());
             mvc.perform(as(alice, get("/api/v1/entries/" + id))).andExpect(jsonPath("$.ciphertext").value("Y2lwaGVydGV4dA=="));
         }
@@ -243,8 +249,78 @@ class ApiIntegrationTest extends IntegrationTest {
             mvc.perform(as(s, get("/api/v1/entries?size=1000"))).andExpect(status().isBadRequest());
             String big = "A".repeat(600 * 1024);
             mvc.perform(as(s, post("/api/v1/entries"))
-                            .content("{\"id\":\"%s\",\"ciphertext\":\"%s\",\"iv\":\"%s\"}".formatted(UUID.randomUUID(), big, IV)))
+                            .content("{\"id\":\"%s\",\"timeZone\":\"UTC\",\"ciphertext\":\"%s\",\"iv\":\"%s\"}".formatted(UUID.randomUUID(), big, IV)))
                     .andExpect(status().isPayloadTooLarge());
+        }
+
+        @Test
+        void onlyOneEntryPerDay() throws Exception {
+            Session s = signup("kate");
+            createEntry(s, null);
+            mvc.perform(as(s, post("/api/v1/entries"))
+                            .content("{\"id\":\"%s\",\"timeZone\":\"UTC\",\"ciphertext\":\"c2Vjb25k\",\"iv\":\"%s\"}".formatted(UUID.randomUUID(), IV)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.detail").value("You have already written today's entry"));
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM journal_entries WHERE user_id = ?::uuid", Integer.class, s.id())).isEqualTo(1);
+        }
+
+        @Test
+        void todayIsTheWritersLocalDayAndLocksAtItsMidnight() throws Exception {
+            Session s = signup("lena");
+            String zone = "Pacific/Kiritimati"; // UTC+14: usually already "tomorrow" compared to UTC
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of(zone));
+            String id = UUID.randomUUID().toString();
+            mvc.perform(as(s, post("/api/v1/entries"))
+                            .content("{\"id\":\"%s\",\"timeZone\":\"%s\",\"ciphertext\":\"eA==\",\"iv\":\"%s\"}".formatted(id, zone, IV)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.entryDate").value(today.toString()))
+                    .andExpect(jsonPath("$.editable").value(true));
+            Instant locksAt = jdbc.queryForObject("SELECT locks_at FROM journal_entries WHERE id = ?::uuid", java.sql.Timestamp.class, id).toInstant();
+            assertThat(locksAt).isEqualTo(today.plusDays(1).atStartOfDay(java.time.ZoneId.of(zone)).toInstant());
+        }
+
+        @Test
+        void pastEntriesAreReadOnly() throws Exception {
+            Session s = signup("mona");
+            String id = createEntry(s, null);
+            jdbc.update("UPDATE journal_entries SET locks_at = now() - interval '1 second' WHERE id = ?::uuid", id);
+            mvc.perform(as(s, get("/api/v1/entries/" + id)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.editable").value(false));
+            mvc.perform(as(s, put("/api/v1/entries/" + id))
+                            .content("{\"ciphertext\":\"cmV3cml0ZQ==\",\"iv\":\"%s\",\"version\":0}".formatted(IV)))
+                    .andExpect(status().isForbidden());
+            mvc.perform(as(s, get("/api/v1/entries/" + id))).andExpect(jsonPath("$.ciphertext").value("Y2lwaGVydGV4dA=="));
+        }
+
+        @Test
+        void createRequiresANamedTimeZone() throws Exception {
+            Session s = signup("nina");
+            for (String tz : List.of("Mars/Base", "+05:30", "")) {
+                mvc.perform(as(s, post("/api/v1/entries"))
+                                .content("{\"id\":\"%s\",\"timeZone\":\"%s\",\"ciphertext\":\"eA==\",\"iv\":\"%s\"}".formatted(UUID.randomUUID(), tz, IV)))
+                        .andExpect(status().isBadRequest());
+            }
+        }
+
+        @Test
+        void activityListsOwnDaysWrittenInTheLastYear() throws Exception {
+            Session s = signup("olga");
+            Session other = signup("pete");
+            createEntry(s, null);
+            createEntry(s, null);
+            createEntry(s, null); // today, yesterday, the day before
+            createEntry(other, null);
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+            mvc.perform(as(s, get("/api/v1/entries/activity")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.days.length()").value(3))
+                    .andExpect(jsonPath("$.days[0]").value(today.minusDays(2).toString()))
+                    .andExpect(jsonPath("$.days[2]").value(today.toString()));
+            jdbc.update("UPDATE journal_entries SET entry_date = entry_date - 400 WHERE user_id = ?::uuid AND entry_date = ?",
+                    s.id(), today.minusDays(2));
+            mvc.perform(as(s, get("/api/v1/entries/activity"))).andExpect(jsonPath("$.days.length()").value(2));
+            mvc.perform(get("/api/v1/entries/activity")).andExpect(status().isUnauthorized());
         }
 
         @Test

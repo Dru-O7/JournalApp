@@ -2,17 +2,36 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError, type EntryRecord, type Greeting } from '../api';
 import { decryptEntry, encryptEntry, SENTIMENTS, type EntryPlaintext, type Sentiment } from '../crypto';
 import { useSession } from '../session';
-import { Alert, errorMessage, formatDate, LockIcon, moodLabel, useAction } from '../components/ui';
+import { Alert, errorMessage, LockIcon, moodLabel, useAction } from '../components/ui';
+import { ActivityHeatmap } from '../components/ActivityHeatmap';
+import { localIso } from '../activity';
 
+/**
+ * A daily journal: one entry per day. Today's entry can be edited until midnight; every earlier
+ * day is read-only, and entries cannot be deleted. The server enforces the same rules.
+ */
 interface Entry {
   id: string;
   version: number;
-  createdAt: string;
-  updatedAt: string;
+  entryDate: string; // yyyy-MM-dd
+  locksAt: string;
   plain: EntryPlaintext | null; // null = could not be decrypted
 }
 
 const NEW = 'new';
+const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+function formatDay(entryDate: string): string {
+  return entryDate === localIso(new Date()) ? 'Today' : dayFmt.format(new Date(`${entryDate}T12:00:00`));
+}
+
+function isEditable(e: Entry): boolean {
+  return Date.now() < Date.parse(e.locksAt);
+}
+
+function toEntry(r: EntryRecord, plain: EntryPlaintext | null): Entry {
+  return { id: r.id, version: r.version, entryDate: r.entryDate, locksAt: r.locksAt, plain };
+}
 
 export function JournalPage() {
   const { dataKey } = useSession();
@@ -24,6 +43,7 @@ export function JournalPage() {
   const [selected, setSelected] = useState<string | null>(null);
   // Remount the editor only when the user opens something else, not when a new entry gets its id on save.
   const [editorKey, setEditorKey] = useState(0);
+  const [activityKey, setActivityKey] = useState(0); // refetch the heatmap after writing
   const open = (id: string | null) => {
     setSelected(id);
     setEditorKey((k) => k + 1);
@@ -39,7 +59,7 @@ export function JournalPage() {
           } catch {
             /* tampered or foreign ciphertext: shown as unreadable, never silently trusted */
           }
-          return { id: r.id, version: r.version, createdAt: r.createdAt, updatedAt: r.updatedAt, plain };
+          return toEntry(r, plain);
         }),
       ),
     [dataKey],
@@ -68,42 +88,56 @@ export function JournalPage() {
     load(0);
   }, [load]);
 
+  const todayIso = localIso(new Date());
+  const todays = entries.find((e) => e.entryDate === todayIso) ?? null;
   const current = selected && selected !== NEW ? entries.find((e) => e.id === selected) ?? null : null;
 
   const onSaved = (saved: Entry) => {
-    setEntries((prev) => {
-      const rest = prev.filter((e) => e.id !== saved.id);
-      return [saved, ...rest].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    });
+    setEntries((prev) => [saved, ...prev.filter((e) => e.id !== saved.id)].sort((a, b) => b.entryDate.localeCompare(a.entryDate)));
     setSelected(saved.id);
+    setActivityKey((k) => k + 1);
   };
 
-  const onDeleted = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    open(null);
+  // The server says today's entry already exists (another tab or device) or the day just ended.
+  const onStale = async () => {
+    await load(0);
+    setActivityKey((k) => k + 1);
   };
 
   return (
     <>
       <GreetingBanner />
+      <div className={selected ? 'editing-mobile-hide' : undefined}>
+        <ActivityHeatmap refreshKey={activityKey} />
+      </div>
       <div className={`journal ${selected ? 'editing' : ''}`}>
         <aside className="card entry-list" aria-label="Entries">
           <div className="row" style={{ padding: '0.25rem 0.5rem 0.5rem' }}>
-            <h2 style={{ margin: 0 }}>Entries</h2>
+            <h2 style={{ margin: 0 }}>Days</h2>
             <span className="spacer" />
-            <button className="primary" onClick={() => open(NEW)}>
-              New entry
-            </button>
+            {!loading &&
+              (todays ? (
+                <button className="ghost" onClick={() => open(todays.id)}>
+                  Today's entry
+                </button>
+              ) : (
+                <button className="primary" onClick={() => open(NEW)}>
+                  Write today's entry
+                </button>
+              ))}
           </div>
           <Alert>{loadError}</Alert>
-          {!loading && entries.length === 0 && !loadError && <div className="empty">No entries yet. Write your first one.</div>}
+          {!loading && entries.length === 0 && !loadError && (
+            <div className="empty">Nothing yet. One entry a day: write today's.</div>
+          )}
           <ul>
             {entries.map((e) => (
               <li key={e.id}>
                 <button className={`entry-item ${selected === e.id ? 'selected' : ''}`} onClick={() => open(e.id)}>
                   <span className="t">{e.plain ? e.plain.title || 'Untitled' : '⚠ Unreadable entry'}</span>
                   <span className="m">
-                    {formatDate(e.createdAt)}
+                    {formatDay(e.entryDate)}
+                    {!isEditable(e) && <LockIcon size={12} />}
                     {e.plain?.sentiment && <span className="mood">{moodLabel(e.plain.sentiment)}</span>}
                   </span>
                 </button>
@@ -113,7 +147,7 @@ export function JournalPage() {
           {loading && <div className="muted small" style={{ padding: '0.75rem' }}>Decrypting…</div>}
           {hasMore && !loading && (
             <button className="ghost full" onClick={() => load(page + 1)}>
-              Load older entries
+              Load earlier days
             </button>
           )}
         </aside>
@@ -122,12 +156,15 @@ export function JournalPage() {
           {selected === null && (
             <div className="card empty">
               <LockIcon size={28} />
-              <p style={{ marginTop: '0.75rem' }}>Select an entry or start a new one.</p>
-              <p className="small">Entries are encrypted on this device before they are saved.</p>
+              <p style={{ marginTop: '0.75rem' }}>{todays ? 'Pick a day to read it.' : "Pick a day to read it, or write today's entry."}</p>
+              <p className="small">One entry a day. You can edit it until midnight; after that it's kept exactly as written.</p>
             </div>
           )}
-          {selected !== null && (selected === NEW || current) && (
-            <Editor key={editorKey} entry={current} onSaved={onSaved} onDeleted={onDeleted} onClose={() => open(null)} />
+          {selected !== null && current && (!isEditable(current) || current.plain === null) && (
+            <ReadOnlyEntry key={editorKey} entry={current} onClose={() => open(null)} />
+          )}
+          {selected !== null && (selected === NEW || (current && isEditable(current) && current.plain !== null)) && (
+            <Editor key={editorKey} entry={current} onSaved={onSaved} onStale={onStale} onClose={() => open(null)} />
           )}
         </section>
       </div>
@@ -158,19 +195,48 @@ function GreetingBanner() {
   );
 }
 
+function ReadOnlyEntry({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+  return (
+    <article className="card stack">
+      <div className="row">
+        <span className="lock-note">
+          <LockIcon size={14} /> {formatDay(entry.entryDate)} · read-only
+        </span>
+        <span className="spacer" />
+        <button type="button" className="ghost" onClick={onClose} aria-label="Close entry">
+          ✕
+        </button>
+      </div>
+      {entry.plain === null ? (
+        <Alert>
+          This entry could not be decrypted. It may have been modified on the server. Its contents are not shown for your safety.
+        </Alert>
+      ) : (
+        <>
+          <h2 className="entry-title">{entry.plain.title || 'Untitled'}</h2>
+          {entry.plain.sentiment && <span className="mood">{moodLabel(entry.plain.sentiment)}</span>}
+          <div className="entry-read">{entry.plain.content || <span className="muted">No text.</span>}</div>
+          <p className="muted small" style={{ margin: 0 }}>
+            This day has ended, so its entry is kept exactly as written.
+          </p>
+        </>
+      )}
+    </article>
+  );
+}
+
 function Editor({
   entry,
   onSaved,
-  onDeleted,
+  onStale,
   onClose,
 }: {
-  entry: Entry | null;
+  entry: Entry | null; // null = writing today's entry
   onSaved: (e: Entry) => void;
-  onDeleted: (id: string) => void;
+  onStale: () => void;
   onClose: () => void;
 }) {
   const { dataKey, me } = useSession();
-  const unreadable = entry !== null && entry.plain === null;
   const [title, setTitle] = useState(entry?.plain?.title ?? '');
   const [content, setContent] = useState(entry?.plain?.content ?? '');
   const [sentiment, setSentiment] = useState<Sentiment | null>(entry?.plain?.sentiment ?? null);
@@ -193,22 +259,22 @@ function Editor({
       try {
         const rec = entry
           ? await api.updateEntry(id, { ciphertext, iv, reportSentiment, version: entry.version })
-          : await api.createEntry({ id, ciphertext, iv, reportSentiment });
-        onSaved({ id: rec.id, version: rec.version, createdAt: rec.createdAt, updatedAt: rec.updatedAt, plain });
+          : await api.createEntry({ id, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', ciphertext, iv, reportSentiment });
+        onSaved(toEntry(rec, plain));
         setSaved(true);
       } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && !entry) {
+          onStale();
+          throw new Error("You've already written today's entry (maybe in another tab). Copy your text; it's been reloaded below.");
+        }
         if (err instanceof ApiError && err.status === 409)
           throw new Error('This entry was changed in another tab or device. Copy your text, reload the page and try again.');
+        if (err instanceof ApiError && err.status === 403) {
+          onStale();
+          throw new Error("This day has ended, so the entry is now locked. Copy anything you'd like to keep.");
+        }
         throw err;
       }
-    });
-  };
-
-  const remove = () => {
-    if (!entry || !confirm('Delete this entry permanently?')) return;
-    run(async () => {
-      await api.deleteEntry(entry.id);
-      onDeleted(entry.id);
     });
   };
 
@@ -219,75 +285,61 @@ function Editor({
           <LockIcon size={14} /> End-to-end encrypted
         </span>
         <span className="spacer" />
-        {entry && <span className="muted small">Created {formatDate(entry.createdAt)}</span>}
+        <span className="muted small">{entry ? formatDay(entry.entryDate) : 'Today'}</span>
         <button type="button" className="ghost" onClick={onClose} aria-label="Close editor">
           ✕
         </button>
       </div>
-      {unreadable ? (
-        <Alert>
-          This entry could not be decrypted. It may have been modified on the server. Its contents are not shown for your safety.
-        </Alert>
-      ) : (
-        <>
-          <Alert>{error}</Alert>
-          {saved && !dirty && <Alert kind="ok">Saved.</Alert>}
-          <input
-            className="title-input"
-            type="text"
-            placeholder="Title"
-            aria-label="Title"
-            value={title}
-            maxLength={200}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              setSaved(false);
-            }}
-          />
-          <textarea
-            placeholder="What's on your mind?"
-            aria-label="Entry"
-            value={content}
-            maxLength={100_000}
-            onChange={(e) => {
-              setContent(e.target.value);
-              setSaved(false);
-            }}
-          />
-          <div>
-            <div className="small muted" style={{ marginBottom: '0.4rem' }}>
-              Mood{me?.weeklyReport ? ' (included in your weekly email)' : ''}
-            </div>
-            <div className="moods" role="group" aria-label="Mood">
-              {SENTIMENTS.map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  aria-pressed={sentiment === s}
-                  onClick={() => {
-                    setSentiment(sentiment === s ? null : s);
-                    setSaved(false);
-                  }}
-                >
-                  {moodLabel(s)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+      <Alert>{error}</Alert>
+      {saved && !dirty && <Alert kind="ok">Saved. You can keep editing until midnight.</Alert>}
+      <input
+        className="title-input"
+        type="text"
+        placeholder="Title"
+        aria-label="Title"
+        value={title}
+        maxLength={200}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          setSaved(false);
+        }}
+      />
+      <textarea
+        placeholder="How was today?"
+        aria-label="Entry"
+        value={content}
+        maxLength={100_000}
+        onChange={(e) => {
+          setContent(e.target.value);
+          setSaved(false);
+        }}
+      />
+      <div>
+        <div className="small muted" style={{ marginBottom: '0.4rem' }}>
+          Mood{me?.weeklyReport ? ' (included in your weekly email)' : ''}
+        </div>
+        <div className="moods" role="group" aria-label="Mood">
+          {SENTIMENTS.map((s) => (
+            <button
+              type="button"
+              key={s}
+              aria-pressed={sentiment === s}
+              onClick={() => {
+                setSentiment(sentiment === s ? null : s);
+                setSaved(false);
+              }}
+            >
+              {moodLabel(s)}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="row">
-        {!unreadable && (
-          <button className="primary" disabled={busy || !dirty}>
-            {busy ? 'Encrypting…' : 'Save'}
-          </button>
-        )}
+        <button className="primary" disabled={busy || !dirty}>
+          {busy ? 'Encrypting…' : 'Save'}
+        </button>
         <span className="spacer" />
-        {entry && (
-          <button type="button" className="danger" onClick={remove} disabled={busy}>
-            Delete
-          </button>
-        )}
+        <span className="muted small">Editable until midnight, then locked for good.</span>
       </div>
     </form>
   );

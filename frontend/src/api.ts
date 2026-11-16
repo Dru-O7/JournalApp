@@ -24,6 +24,11 @@ export interface EntryRecord {
   iv: string;
   encVersion: number;
   version: number;
+  /** The day this entry belongs to (yyyy-MM-dd). One entry per day. */
+  entryDate: string;
+  /** When it becomes read-only: the end of `entryDate` in the writer's time zone. */
+  locksAt: string;
+  editable: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +39,11 @@ export interface Page<T> {
   size: number;
   totalElements: number;
   totalPages: number;
+}
+
+export interface Activity {
+  /** Days written on in the last year (yyyy-MM-dd), oldest first. */
+  days: string[];
 }
 
 export interface Greeting {
@@ -134,12 +144,13 @@ export const api = {
   deleteAccount: (authKey: string) => request<void>('DELETE', '/me', { authKey }),
   greeting: () => request<Greeting>('GET', '/me/greeting'),
 
+  entryActivity: () => request<Activity>('GET', '/entries/activity'),
   listEntries: (page: number, size = 20) => request<Page<EntryRecord>>('GET', `/entries?page=${page}&size=${size}`),
-  createEntry: (body: { id: string; ciphertext: string; iv: string; reportSentiment: Sentiment | null }) =>
+  /** Creates today's entry; `timeZone` decides which day "today" is. 409 if today's entry exists. */
+  createEntry: (body: { id: string; timeZone: string; ciphertext: string; iv: string; reportSentiment: Sentiment | null }) =>
     request<EntryRecord>('POST', '/entries', body),
   updateEntry: (id: string, body: { ciphertext: string; iv: string; reportSentiment: Sentiment | null; version: number }) =>
     request<EntryRecord>('PUT', `/entries/${encodeURIComponent(id)}`, body),
-  deleteEntry: (id: string) => request<void>('DELETE', `/entries/${encodeURIComponent(id)}`),
 
   adminUsers: (page: number) => request<Page<AdminUser>>('GET', `/admin/users?page=${page}&size=50`),
   adminCreate: (body: { username: string; authKey: string; wrappedKey: string; wrappedKeyIv: string }) =>

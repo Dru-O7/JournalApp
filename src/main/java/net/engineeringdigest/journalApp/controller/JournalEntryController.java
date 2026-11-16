@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-/** The caller's own (encrypted) journal entries. */
+/**
+ * The caller's own (encrypted) daily journal: one entry per day, editable until that day ends.
+ * There is intentionally no endpoint to delete an entry.
+ */
 @RestController
 @RequestMapping("/api/v1/entries")
 @Tag(name = "Journal entries", description = "Encrypted entries of the signed-in user")
@@ -32,6 +35,12 @@ public class JournalEntryController {
         return service.list(me.id(), page, size);
     }
 
+    /** The days written on over the last year, for the activity heatmap. */
+    @GetMapping("/activity")
+    public ActivityResponse activity(@AuthenticationPrincipal AuthenticatedUser me) {
+        return service.activity(me.id());
+    }
+
     @GetMapping("/{id}")
     public EntryResponse get(@AuthenticationPrincipal AuthenticatedUser me, @PathVariable UUID id) {
         return service.get(me.id(), id);
@@ -47,11 +56,5 @@ public class JournalEntryController {
     public EntryResponse update(@AuthenticationPrincipal AuthenticatedUser me, @PathVariable UUID id,
                                 @Valid @RequestBody UpdateEntryRequest req) {
         return service.update(me.id(), id, req);
-    }
-
-    @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@AuthenticationPrincipal AuthenticatedUser me, @PathVariable UUID id) {
-        service.delete(me.id(), id);
     }
 }

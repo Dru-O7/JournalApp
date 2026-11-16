@@ -45,8 +45,15 @@ describe.skipIf(!BASE)('end-to-end against a running server', () => {
 
     const entryId = crypto.randomUUID();
     const sealed = await encryptEntry(aliceKey, entryId, { title: 'Private', content: SECRET_TEXT, sentiment: 'SAD' });
-    const created = await call('POST', '/entries', { id: entryId, ...sealed, reportSentiment: 'SAD' }, aliceToken);
+    const created = await call('POST', '/entries', { id: entryId, timeZone: 'UTC', ...sealed, reportSentiment: 'SAD' }, aliceToken);
     expect(created.status).toBe(201);
+    expect(created.json.editable).toBe(true);
+
+    // --- one entry per day, and entries can't be deleted
+    const second = crypto.randomUUID();
+    const again = await call('POST', '/entries', { id: second, timeZone: 'UTC', ...(await encryptEntry(aliceKey, second, { title: 'x', content: 'y', sentiment: null })) }, aliceToken);
+    expect(again.status).toBe(409);
+    expect((await call('DELETE', `/entries/${entryId}`, undefined, aliceToken)).status).toBe(405);
 
     // --- what the server sends back is ciphertext only
     const fetched = await call('GET', `/entries/${entryId}`, undefined, aliceToken);
@@ -61,7 +68,6 @@ describe.skipIf(!BASE)('end-to-end against a running server', () => {
     const bobToken: string = bobSu.json.token;
     expect((await call('GET', `/entries/${entryId}`, undefined, bobToken)).status).toBe(404);
     expect((await call('PUT', `/entries/${entryId}`, { ...sealed, version: 0 }, bobToken)).status).toBe(404);
-    expect((await call('DELETE', `/entries/${entryId}`, undefined, bobToken)).status).toBe(404);
     expect((await call('GET', '/entries', undefined, bobToken)).json.totalElements).toBe(0);
 
     // --- even with alice's ciphertext in hand, bob's key cannot decrypt it
