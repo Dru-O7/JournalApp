@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Weather and quote lookups. Both are best-effort: any failure (timeout, HTTP error, unexpected or
@@ -75,6 +76,19 @@ public class ExternalInfoClient {
         }
     }
 
+    /** Social-media residue the quote source sometimes appends, e.g. "… unconcerned. @" or "#stoic". */
+    private static final Pattern TRAILING_TAGS = Pattern.compile("(\\s+[@#]\\S*)+$");
+
+    /** Tidies third-party quote text for display: drops trailing @handles/#tags and extra whitespace. */
+    static String cleanQuote(String raw) {
+        String s = raw.strip().replaceAll("\\s+", " ");
+        s = TRAILING_TAGS.matcher(s).replaceAll("");
+        if (s.startsWith("@") || s.startsWith("#")) {
+            s = "";
+        }
+        return s.isBlank() ? null : s;
+    }
+
     @Cacheable(cacheNames = CacheConfig.QUOTE, key = "'daily'", unless = "#result == null")
     public QuoteInfo quote() {
         try {
@@ -82,7 +96,12 @@ public class ExternalInfoClient {
             if (body == null || body.data() == null || body.data().quote() == null) {
                 return null;
             }
-            return new QuoteInfo(body.data().quote(), body.data().author());
+            String quote = cleanQuote(body.data().quote());
+            if (quote == null) {
+                return null;
+            }
+            String author = body.data().author() == null ? null : cleanQuote(body.data().author());
+            return new QuoteInfo(quote, author);
         } catch (RestClientException e) {
             log.warn("Quote API call failed: {}", e.getMessage());
             return null;

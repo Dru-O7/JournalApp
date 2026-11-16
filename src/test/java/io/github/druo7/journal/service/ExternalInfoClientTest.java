@@ -53,4 +53,20 @@ class ExternalInfoClientTest {
                 .andRespond(withSuccess("{\"data\":{\"author\":\"Seneca\",\"quote\":\"Luck is...\"}}", MediaType.APPLICATION_JSON));
         assertThat(client.quote()).isEqualTo(new ExternalInfoClient.QuoteInfo("Luck is...", "Seneca"));
     }
+
+    @Test
+    void stripsSocialMediaResidueFromQuotes() {
+        server.expect(requestTo("https://quote.test/q"))
+                .andRespond(withSuccess("{\"data\":{\"author\":\"TheAncientSage\",\"quote\":\"Chase nothing.  Remain unconcerned. @ #zen\"}}",
+                        MediaType.APPLICATION_JSON));
+        assertThat(client.quote()).isEqualTo(new ExternalInfoClient.QuoteInfo("Chase nothing. Remain unconcerned.", "TheAncientSage"));
+    }
+
+    @Test
+    void cleanQuoteKeepsInlineSymbolsAndDropsEmptyResults() {
+        assertThat(ExternalInfoClient.cleanQuote("Email me@home is fine")).isEqualTo("Email me@home is fine");
+        assertThat(ExternalInfoClient.cleanQuote("Price is #1 for a reason")).isEqualTo("Price is #1 for a reason");
+        assertThat(ExternalInfoClient.cleanQuote("   ")).isNull();
+        assertThat(ExternalInfoClient.cleanQuote("@someone")).isNull();
+    }
 }
