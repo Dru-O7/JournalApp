@@ -1,7 +1,5 @@
 # Journal App
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Dru-O7_JournalApp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Dru-O7_JournalApp)
-
 A private journal with **end-to-end encrypted entries**. Spring Boot 4 + PostgreSQL backend, React frontend.
 Journal entries are encrypted in the browser; the server and database only ever hold ciphertext, so
 neither administrators nor anyone with database access can read them.
@@ -41,6 +39,9 @@ optimistic locking on edits, strict CSP on the built frontend, and no server ses
 Prerequisites: Java 17+, Node 22+, PostgreSQL (or Docker), optionally Redis.
 
 ```sh
+git clone https://github.com/Dru-O7/JournalApp.git
+cd JournalApp
+
 # 1. Dependencies (or point at your own PostgreSQL)
 docker compose up -d
 
@@ -51,9 +52,11 @@ cp src/main/resources/application-local.example.yml src/main/resources/applicati
 # 3. Backend on :8081
 SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
 
-# 4. Frontend on :5173 (proxies /api to :8081)
+# 4. Frontend on :5173 (proxies /api to :8081), in a second terminal
 cd frontend && npm install && npm run dev
 ```
+
+Open http://localhost:5173 and create an account.
 
 Swagger UI (local profile only): http://localhost:8081/swagger-ui/index.html
 
@@ -112,7 +115,9 @@ All endpoints are under `/api/v1`. Errors use `application/problem+json`.
 
 ```sh
 ./mvnw verify                 # backend: unit + integration tests on an embedded PostgreSQL (no Docker)
-cd frontend && npm test       # crypto tests
+
+cd frontend
+npm test                      # crypto unit tests
 # Optional end-to-end check against a running backend:
 E2E_BASE_URL=http://localhost:8081 npx vitest run src/e2e.test.ts
 ```
