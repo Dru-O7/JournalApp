@@ -6,9 +6,10 @@ import { JournalPage } from './pages/JournalPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminPage } from './pages/AdminPage';
 import { LockIcon } from './components/ui';
+import { ReauthDialog } from './components/ReauthDialog';
 
 export default function App() {
-  const { status, me, logout } = useSession();
+  const { status, me, logout, expired } = useSession();
 
   if (status === 'loading') return <div className="center">Loading…</div>;
 
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      {expired && <ReauthDialog />}
     </>
   );
 }

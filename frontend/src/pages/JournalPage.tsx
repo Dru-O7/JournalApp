@@ -263,6 +263,8 @@ function Editor({
         onSaved(toEntry(rec, plain));
         setSaved(true);
       } catch (err) {
+        if (err instanceof ApiError && err.status === 401)
+          throw new Error('Not saved yet: your session ended. Sign in again, then press Save. Your text is still here.');
         if (err instanceof ApiError && err.status === 409 && !entry) {
           onStale();
           throw new Error("You've already written today's entry (maybe in another tab). Copy your text; it's been reloaded below.");

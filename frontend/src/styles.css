@@ -176,6 +176,10 @@ th { color: var(--muted); font-weight: 500; font-size: 0.82rem; text-transform: 
 .tag { font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 6px; background: var(--surface-2); margin-right: 0.25rem; }
 .tag.admin { background: var(--accent-soft); }
 
+/* ---------- modal ---------- */
+dialog.modal { width: min(440px, calc(100vw - 2rem)); color: var(--text); padding: 1.25rem; }
+dialog.modal::backdrop { background: rgba(24, 22, 20, 0.55); }
+
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem; align-items: start; }
 .center { display: grid; place-items: center; min-height: 60vh; color: var(--muted); }
 

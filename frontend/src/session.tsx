@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, setToken, setUnauthorizedHandler, type AuthResponse, type Me } from './api';
 import { deriveKeys, generateDataKey, unwrapDataKey, wrapDataKey } from './crypto';
 
@@ -15,6 +15,12 @@ interface SessionValue {
   me: Me | null;
   dataKey: CryptoKey | null;
   notice: string | null;
+  /**
+   * The token expired or was revoked while the journal was open. The page stays mounted (so unsaved
+   * writing survives) and a password prompt is shown; see {@link SessionValue.reauthenticate}.
+   */
+  expired: boolean;
+  reauthenticate(password: string): Promise<void>;
   login(username: string, password: string): Promise<void>;
   signup(input: { username: string; password: string; email: string; city: string; weeklyReport: boolean }): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -49,17 +55,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [dataKey, setDataKey] = useState<CryptoKey | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
+  const statusRef = useRef<Status>(status);
+  statusRef.current = status;
 
   const logout = useCallback((message?: string) => {
     storeToken(null);
     setMe(null);
     setDataKey(null);
+    setExpired(false);
     setNotice(message ?? null);
     setStatus('signed-out');
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => logout('Your session has ended. Please sign in again.'));
+    setUnauthorizedHandler(() => {
+      if (statusRef.current === 'ready') {
+        // Keep the journal (and any unsaved writing) on screen and ask for the password again.
+        // The stale token is dropped so the sign-in request is not rejected because of it.
+        storeToken(null);
+        setExpired(true);
+      } else {
+        logout('Your session has ended. Please sign in again.');
+      }
+    });
     const t = readStoredToken();
     if (!t) {
       setStatus('signed-out');
@@ -110,6 +129,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [accept],
   );
 
+  const reauthenticate = useCallback(
+    async (password: string) => {
+      if (!me) throw new Error('Not signed in');
+      const { authKey, kek } = await deriveKeys(me.username, password);
+      const res = await api.login(me.username, authKey);
+      await accept(res, kek);
+      setExpired(false);
+    },
+    [me, accept],
+  );
+
   const unlock = useCallback(
     async (password: string) => {
       if (!me) throw new Error('Not signed in');
@@ -149,8 +179,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<SessionValue>(
-    () => ({ status, me, dataKey, notice, login, signup, unlock, changeCredentials, setMe, logout }),
-    [status, me, dataKey, notice, login, signup, unlock, changeCredentials, logout],
+    () => ({ status, me, dataKey, notice, expired, reauthenticate, login, signup, unlock, changeCredentials, setMe, logout }),
+    [status, me, dataKey, notice, expired, reauthenticate, login, signup, unlock, changeCredentials, logout],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
