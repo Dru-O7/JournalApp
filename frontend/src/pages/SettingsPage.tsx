@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
-import { deriveKeys, passwordProblem } from '../crypto';
+import { deriveKeys, passwordProblem, unwrapDataKey } from '../crypto';
 import { useSession } from '../session';
 import { Alert, PasswordField, TextField, useAction, useFieldError } from '../components/ui';
 
@@ -147,26 +147,82 @@ function SessionsCard() {
 function DeleteCard() {
   const { me, logout } = useSession();
   const [password, setPassword] = useState('');
-  const { busy, error, run } = useAction();
+  // Step 2 holds the auth key derived (and checked) in step 1, so the password is not re-typed.
+  const [authKey, setAuthKey] = useState<string | null>(null);
+  const [typed, setTyped] = useState('');
+  const { busy, error, setError, run } = useAction();
+  const { fail, errorFor, clear } = useFieldError();
+  const confirmRef = useRef<HTMLInputElement>(null);
 
-  const submit = (e: FormEvent) => {
+  useEffect(() => {
+    if (authKey) confirmRef.current?.focus();
+  }, [authKey]);
+
+  const checkPassword = (e: FormEvent) => {
     e.preventDefault();
-    if (!me || !confirm('Delete your account and every entry? This cannot be undone.')) return;
+    clear();
+    if (!me) return;
     run(async () => {
-      const { authKey } = await deriveKeys(me.username, password);
+      const keys = await deriveKeys(me.username, password);
+      try {
+        // Same check as unlocking: only the right password unwraps this account's key.
+        await unwrapDataKey(me, keys.kek);
+      } catch {
+        return fail('d-password', 'That password is not correct.');
+      }
+      setAuthKey(keys.authKey);
+    });
+  };
+
+  const cancel = () => {
+    setAuthKey(null);
+    setTyped('');
+    setPassword('');
+    setError(null);
+  };
+
+  const remove = (e: FormEvent) => {
+    e.preventDefault();
+    if (!me || !authKey || typed !== me.username) return;
+    run(async () => {
       await api.deleteAccount(authKey);
       logout('Your account and all entries were deleted.');
     });
   };
 
+  if (authKey && me)
+    return (
+      <form className="card danger-zone" onSubmit={remove}>
+        <h2>Delete account</h2>
+        <p className="small">
+          This permanently deletes <strong>{me.username}</strong> and every journal entry from the server. It cannot be undone.
+        </p>
+        <Alert>{error}</Alert>
+        <div className="field">
+          <label htmlFor="d-confirm">
+            Type <strong>{me.username}</strong> to confirm
+          </label>
+          <input ref={confirmRef} id="d-confirm" type="text" autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />
+        </div>
+        <div className="row">
+          <button className="danger" disabled={busy || typed !== me.username}>
+            {busy ? 'Deleting…' : `Delete ${me.username} forever`}
+          </button>
+          <button type="button" className="ghost" onClick={cancel}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    );
+
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={checkPassword} onChange={clear}>
       <h2>Delete account</h2>
       <p className="muted small">Permanently deletes your account and all of your entries from the server.</p>
       <Alert>{error}</Alert>
-      <PasswordField id="d-password" label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
+      <PasswordField id="d-password" label="Password" value={password} onChange={setPassword} autoComplete="current-password" error={errorFor('d-password')} />
       <button className="danger" disabled={busy}>
-        {busy ? 'Deleting…' : 'Delete everything'}
+        {busy ? 'Checking…' : 'Continue to delete'}
       </button>
     </form>
   );
