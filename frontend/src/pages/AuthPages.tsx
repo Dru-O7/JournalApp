@@ -32,7 +32,7 @@ export function LoginPage() {
           </div>
           <PasswordField id="password" label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
           <button className="primary full" disabled={busy}>
-            {busy ? 'Unlocking…' : 'Sign in'}
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
         <p className="small" style={{ marginTop: '1rem' }}>
@@ -129,7 +129,7 @@ export function SignupPage() {
               <span>I understand that if I forget my password, my entries cannot be recovered.</span>
             </label>
           </div>
-          <button className="primary full" disabled={busy || !understood}>
+          <button className="primary full" disabled={busy}>
             {busy ? 'Creating keys…' : 'Create journal'}
           </button>
         </form>
