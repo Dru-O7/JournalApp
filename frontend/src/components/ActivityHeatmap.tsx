@@ -18,6 +18,7 @@ export function ActivityHeatmap({ refreshKey }: { refreshKey: number }) {
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +44,7 @@ export function ActivityHeatmap({ refreshKey }: { refreshKey: number }) {
     el.scrollLeft = el.scrollWidth;
     const ro = new ResizeObserver(() => {
       el.scrollLeft = el.scrollWidth;
+      setScrollable(el.scrollWidth > el.clientWidth + 1);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -71,8 +73,20 @@ export function ActivityHeatmap({ refreshKey }: { refreshKey: number }) {
         <span className="muted small">{summary}</span>
         {stats.streak > 1 && <span className="streak small">{stats.streak}-day streak</span>}
       </div>
-      <div className="hm-scroll" ref={scrollRef}>
-        <div className="hm" role="img" aria-label={`Calendar of days written. ${summary}.`} onPointerLeave={() => setTip(null)}>
+      {/* When the calendar is wider than the screen, the scroller is focusable so arrow keys can scroll it. */}
+      <div
+        className="hm-scroll"
+        ref={scrollRef}
+        tabIndex={scrollable ? 0 : undefined}
+        role={scrollable ? 'region' : undefined}
+        aria-label={scrollable ? 'Writing calendar, scrolls sideways' : undefined}
+      >
+        <div
+          className="hm"
+          role="img"
+          aria-label={`Calendar of days written. ${summary}.${stats.streak > 1 ? ` Current streak: ${stats.streak} days.` : ''}`}
+          onPointerLeave={() => setTip(null)}
+        >
           {grid.months.map((mo) => (
             <span key={`${mo.week}-${mo.label}`} className="hm-month" style={{ gridColumn: mo.week + 2 }} aria-hidden>
               {mo.label}
