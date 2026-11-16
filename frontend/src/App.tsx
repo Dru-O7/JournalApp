@@ -7,6 +7,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AdminPage } from './pages/AdminPage';
 import { LockIcon } from './components/ui';
 import { ReauthDialog } from './components/ReauthDialog';
+import { confirmDiscard } from './unsaved';
 
 export default function App() {
   const { status, me, logout, expired } = useSession();
@@ -37,7 +38,7 @@ export default function App() {
           </NavLink>
           <NavLink to="/settings">Settings</NavLink>
           {isAdmin && <NavLink to="/admin">Admin</NavLink>}
-          <button className="ghost" onClick={() => logout()}>
+          <button className="ghost" onClick={() => confirmDiscard() && logout()}>
             Sign out
           </button>
         </nav>

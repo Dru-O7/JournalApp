@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { api, ApiError, type EntryRecord, type Greeting } from '../api';
 import { decryptEntry, encryptEntry, SENTIMENTS, type EntryPlaintext, type Sentiment } from '../crypto';
 import { useSession } from '../session';
 import { Alert, errorMessage, LockIcon, moodLabel, useAction } from '../components/ui';
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { localIso } from '../activity';
+import { confirmDiscard, DISCARD_PROMPT, setUnsaved } from '../unsaved';
 
 /**
  * A daily journal: one entry per day. Today's entry can be edited until midnight; every earlier
@@ -45,6 +47,7 @@ export function JournalPage() {
   const [editorKey, setEditorKey] = useState(0);
   const [activityKey, setActivityKey] = useState(0); // refetch the heatmap after writing
   const open = (id: string | null) => {
+    if (id === selected || !confirmDiscard()) return;
     setSelected(id);
     setEditorKey((k) => k + 1);
   };
@@ -246,6 +249,22 @@ function Editor({
   const dirty =
     entry === null ? title !== '' || content !== '' || sentiment !== null
       : title !== (entry.plain?.title ?? '') || content !== (entry.plain?.content ?? '') || sentiment !== (entry.plain?.sentiment ?? null);
+
+  // Guard unsaved writing against in-app navigation (incl. Back), tab close/reload, and day switches.
+  useEffect(() => {
+    setUnsaved(dirty);
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  useEffect(() => () => setUnsaved(false), []);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+    if (window.confirm(DISCARD_PROMPT)) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
 
   const save = (e: FormEvent) => {
     e.preventDefault();
