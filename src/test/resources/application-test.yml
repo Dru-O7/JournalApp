@@ -1,0 +1,21 @@
+# Test-only keys. Never use these anywhere else.
+app:
+  jwt:
+    secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtMzItYnl0ZXMhISE=
+  data-key: dGVzdC1vbmx5LWRhdGEta2V5LTMyLWJ5dGVzLW9rISE=
+  cache:
+    enabled: false
+  scheduling:
+    enabled: false
+  login-rate-limit:
+    max-attempts-per-username: 5
+    max-attempts-per-ip: 1000
+
+spring:
+  mail:
+    host: ""
+
+logging:
+  level:
+    org.flywaydb: warn
+    io.zonky: warn
