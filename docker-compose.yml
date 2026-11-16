@@ -1,0 +1,19 @@
+# Local development dependencies only (PostgreSQL + Redis). Matches application-local.example.yml.
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: journal
+      POSTGRES_USER: journal
+      POSTGRES_PASSWORD: journal
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:6379:6379"
+volumes:
+  pgdata:
