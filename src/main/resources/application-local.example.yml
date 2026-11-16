@@ -2,7 +2,7 @@
 # Generate keys with:  openssl rand -base64 32
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/journal
+    url: jdbc:postgresql://localhost:5433/journal
     username: journal
     password: journal
 
