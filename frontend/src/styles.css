@@ -5,12 +5,14 @@
   --text: #2b2723;
   --muted: #6f675e;
   --border: #e2dbd0;
+  /* Form field outlines need 3:1 against the surface (WCAG 1.4.11); --border is for cards only. */
+  --border-input: #8a8174;
   --accent: #5b4bb7;
   --accent-text: #ffffff;
   --accent-soft: #ece9fa;
   --danger: #b3261e;
   --danger-soft: #fbe9e7;
-  --ok: #2e7d4f;
+  --ok: #2a7449;
   --ok-soft: #e6f4ec;
   --focus: #8a7cf0;
   /* Activity heatmap: empty day / written day */
@@ -31,6 +33,7 @@
     --text: #ece6dd;
     --muted: #a59d92;
     --border: #3a3631;
+    --border-input: #7a7268;
     --accent: #a99cf5;
     --accent-text: #17151f;
     --accent-soft: #2c2843;
@@ -102,13 +105,17 @@ input[type='text'], input[type='password'], input[type='email'], textarea, selec
   font: inherit;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
 }
 textarea { resize: vertical; min-height: 220px; line-height: 1.65; font-family: var(--serif); font-size: 1.05rem; }
-input.title-input { font-family: var(--serif); font-size: 1.35rem; font-weight: 600; border: none; padding: 0.25rem 0; background: transparent; }
-input.title-input:focus { outline: none; border-bottom: 1px solid var(--border); }
+input.title-input {
+  font-family: var(--serif); font-size: 1.35rem; font-weight: 600; padding: 0.25rem 0; background: transparent;
+  border: none; border-bottom: 1px solid var(--border-input); border-radius: 0;
+}
+/* Underline style: focus thickens the underline to 2px in the focus colour instead of an outline box. */
+input.title-input:focus { outline: none; border-bottom-color: var(--focus); box-shadow: 0 1px 0 var(--focus); }
 .check { display: flex; gap: 0.6rem; align-items: flex-start; font-weight: 400; }
 .check input { margin-top: 0.3rem; }
 
